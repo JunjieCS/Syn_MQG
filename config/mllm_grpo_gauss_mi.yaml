@@ -1,0 +1,102 @@
+#
+#
+#   CUDA_VISIBLE_DEVICES=0,1 deepspeed scripts/train_mllm_grpo_gauss_mi.py \
+#     --config config/mllm_grpo_gauss_mi.yaml \
+#     --deepspeed config/deepspeed_grpo.json
+
+model:
+  backbone_type: "qwen2vl"
+  model_path: "../../models/Qwen2.5-VL-7B-Instruct"
+
+  freeze_visual_encoder: true
+  use_flash_attention: true
+  use_gradient_checkpointing: true
+
+  use_lora: false
+
+  grpo_lora:
+    r: 8
+    lora_alpha: 16
+    lora_dropout: 0.0
+    target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+    bias: "none"
+
+  disentangle:
+    n_queries_shared: 32
+    n_text_layers: 4
+    num_heads: 8
+    dropout: 0.1
+    shared_dual_dropout: 0.1
+    max_text_tokens: 512
+
+training:
+  load_pretrained: "outputs/checkpoints/scienceqa/mllm_early_disentangle_gauss_mi/trainable_best.pt"
+  load_pretrained_lora: null
+
+  freeze_backbone_llm: true
+  freeze_shared_dual: true
+  freeze_visual_private: true
+  freeze_text_private: true
+  freeze_segment_emb: true
+
+  num_epochs: 10
+  batch_size: 2
+  gradient_accumulation_steps: 8
+  max_grad_norm: 1.0
+
+  learning_rate:
+    grpo_lora: 5.0e-5
+
+  optimizer: adamw
+  weight_decay: 0.01
+  warmup_steps: 100
+
+  memory_cleanup_config:
+    enable_deep_cleanup: true
+    enable_validation_cleanup: true
+    enable_epoch_cleanup: true
+    log_memory_usage: false
+
+grpo:
+  num_samples: 4
+  temperature: 1.0
+  clip_eps: 0.2
+  beta: 0.1
+  use_kl_penalty: true
+
+  pid_mode: "vmf"
+  pid_scorer_path: "outputs/reward/multimodalqa/mllm_dis_gauss_mi/vmf/pid_reward_model/vmf_scorer.pt"
+  pid_projector_path: null
+  pid_proj_dim: 128
+
+  reward:
+    rule_weight: 0.2
+    sim_weight: 0.5
+    pid_weight: 0.3
+
+  reranker_model_path: "../../models/Qwen3-Reranker-4B"
+
+  ppo_cot_weight: 0.3
+  ppo_q_weight: 1.0
+  kl_cot_weight: 1.1
+  kl_q_weight: 1.0
+
+inference:
+  max_new_tokens: 256
+
+data:
+  train_file: "data/scienceqa_stage4_sft_caption/train.json"
+  val_file: "data/scienceqa_stage4_sft_caption/val.json"
+  image_root: "dataset/ScienceQA-main/data"
+
+  max_constraint_length: 256
+  max_target_length: 512
+  filter_non_multimodal: true
+  preprocess_workers: 4
+
+output:
+  save_dir: "outputs/checkpoints/scienceqa/mllm_grpo_gauss_mi"
+  log_dir: "outputs/logs/mllm_grpo_gauss_mi"
+  save_every_n_epochs: 1
+
+seed: 42

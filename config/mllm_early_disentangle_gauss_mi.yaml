@@ -1,0 +1,92 @@
+#
+#
+#   L_align = BA fixed-Gaussian: mean(||norm_sI - norm_sT||²)
+#   L_sep   = CLUB all-pairs: (mean_offdiag - mean_diag).clamp(min=0)
+#
+# Loss：L = L_gen + λ_align·L_align + λ_sep·L_sep
+
+model:
+  backbone_type: "qwen2vl"
+  model_path: "../../models/Qwen2.5-VL-7B-Instruct"
+
+  freeze_visual_encoder: true
+  use_flash_attention: true
+  use_gradient_checkpointing: true
+
+  use_lora: false
+  lora:
+    r: 16
+    lora_alpha: 32
+    lora_dropout: 0.05
+    target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+    bias: "none"
+
+  disentangle:
+    n_queries_shared: 32
+    n_text_layers: 4
+    num_heads: 8
+    dropout: 0.1
+    shared_dual_dropout: 0.1
+    max_text_tokens: 512
+    kappa_sep: 1.0
+
+training:
+  load_pretrained: ""
+  stage2: false
+
+  freeze_backbone_llm: true
+  freeze_visual_private: false
+  freeze_text_private: false
+  freeze_shared_dual: false
+  freeze_segment_emb: false
+  train_lora: false
+
+  num_epochs: 50
+  batch_size: 32
+  gradient_accumulation_steps: 16
+  max_grad_norm: 1.0
+  warmup_steps: 500
+
+  gen_loss_weight: 1.0
+  disentangle_loss_weight: 0.1
+  recon_loss_weight: 0.1
+  lambda_align: 1.0
+  lambda_sep: 0.0
+
+  phase_a_steps: 500
+  phase_b_steps: 1000
+  phase_c_inner_loop: 3
+  predictor_lr: 1.0e-4
+
+  learning_rate:
+    new_modules: 2.0e-4    # shared_dual / visual & text_private / segment
+    lora: 1.0e-5
+
+  optimizer: adamw
+  weight_decay: 0.01
+  scheduler: cosine
+
+data:
+  train_file: "data/scienceqa_stage4_sft_caption/train.json"
+  val_file: "data/scienceqa_stage4_sft_caption/val.json"
+  image_root: "dataset/ScienceQA-main/data"
+
+  max_constraint_length: 256
+  max_target_length: 512
+  filter_non_multimodal: true
+  preprocess_workers: 4
+
+output:
+  save_dir: "outputs/checkpoints/scienceqa/mllm_early_disentangle_gauss_mi"
+  log_dir: "outputs/logs/mllm_early_disentangle_gauss_mi"
+  save_every_n_epochs: 1
+  keep_last_n_checkpoints: 2
+
+inference:
+  batch_size: 4
+  max_new_tokens: 256
+  num_beams: 1
+  do_sample: false
+  max_retries: 3
+
+seed: 42

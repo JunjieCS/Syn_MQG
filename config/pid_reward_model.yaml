@@ -1,0 +1,31 @@
+#
+#
+#
+#   python scripts/compute_pid_teacher_scores.py \
+#     --config config/pid_reward_model.yaml \
+#     --sft_config config/mllm_early_disentangle.yaml
+#
+#   python scripts/train_pid_reward_model.py \
+#     --config config/pid_reward_model.yaml \
+#     --sft_config config/mllm_early_disentangle.yaml
+
+pid_reward_model:
+  # Reward Model MLP
+  input_dim: 17920
+  hidden_dims: [2048, 1024, 512]
+  dropout: 0.1
+
+  proj_dim: 256
+  reg_scale: 1.0e-4
+
+  training:
+    lr: 1.0e-4
+    weight_decay: 0.01
+    batch_size: 32
+    num_epochs: 20
+    margin: 0.1         # Bradley-Terry margin
+    mse_weight: 0.1
+
+  disentangle_checkpoint: "outputs/checkpoints/scienceqa/mllm_early_disentangle/trainable_best.pt"
+  teacher_scores_file: "data/pid_teacher_scores.pkl"
+  save_dir: "outputs/checkpoints/pid_reward_model"
